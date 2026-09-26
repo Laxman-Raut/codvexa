@@ -1,4 +1,8 @@
+import dns from "dns";
+
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 import express from "express";
+
 import { configDotenv } from "dotenv";
 import { connectDb } from "./config/db.js";
 import router from "./routes/auth.route.js";
@@ -11,7 +15,6 @@ app.use(express.json());
 app.get("/", (req, res) => {
     res.json({ message: "service is up" });
 }); 
-app.use(express.json);
 app.use("/",router)
 app.get("/health", (req, res) => {
     res.status(200).json({ message: "auth is running" });

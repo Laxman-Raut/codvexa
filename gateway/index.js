@@ -23,6 +23,7 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use(morgan('dev'));
+app.use(express.json());
 
 app.get("/", (req, res) => {
     res.json({ message: "service is up" });
@@ -31,7 +32,7 @@ app.get("/", (req, res) => {
 
 app.use('/api/auth', proxy(AUTH_SERVICE, {
     // /auth/login -> /login on the auth service
-    proxyReqPathResolver: (req) => req.url,
+    proxyReqPathResolver: (req) => req.url.replace(/^\/api\/auth/, '') || '/',
 
 
     proxyErrorHandler: (err, res, next) => {
@@ -40,7 +41,7 @@ app.use('/api/auth', proxy(AUTH_SERVICE, {
     }
 }));
 
-app.use(express.json());
+
 
 app.get('/health', (req, res) => {
     res.status(200).json({ message: 'ya gateway is running' });
