@@ -30,7 +30,7 @@ await redis.set(
   `session-${sessionId}`,
   JSON.stringify({
     name: user.name,
-    userId: user._id,
+    _Id: user._id,
     email: user.email,
     avatar: user.avatar
   }),

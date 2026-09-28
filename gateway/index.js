@@ -1,53 +1,92 @@
-import express from 'express';
-import { configDotenv } from 'dotenv';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import morgan from 'morgan';
-import proxy from 'express-http-proxy';
 
+import express from "express";
+import { configDotenv } from "dotenv";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import morgan from "morgan";
+import proxy from "express-http-proxy";
+
+import { protect } from "./middleware/protect.js";
+import { getcurrentuser } from "./controllers/user.controller.js";
+import {proxyWithHeader}from "./utils/proxyWithHeader.js"
 configDotenv();
 
 const port = process.env.PORT || 8000;
+
 const AUTH_SERVICE = process.env.AUTH_SERVICE;
+const PROJECT_SERVICE = process.env.PROJECT_SERVICE;
 
 if (!AUTH_SERVICE) {
-    console.error('AUTH_SERVICE is not set in .env');
-    process.exit(1);
+  console.error("AUTH_SERVICE is not set in .env");
+  process.exit(1);
+}
+
+if (!PROJECT_SERVICE) {
+  console.error("PROJECT_SERVICE is not set in .env");
+  process.exit(1);
 }
 
 const app = express();
 
-app.use(cors({
+app.use(
+  cors({
     origin: process.env.FRONTEND_URL,
-    credentials: true
-}));
+    credentials: true,
+  })
+);
+
 app.use(cookieParser());
-app.use(morgan('dev'));
+app.use(morgan("dev"));
 app.use(express.json());
 
 app.get("/", (req, res) => {
-    res.json({ message: "service is up" });
+  res.json({ message: "service is up" });
 });
 
+app.use(
+  "/api/auth",
+  proxy(AUTH_SERVICE, {
+    proxyReqPathResolver: (req) =>
+      req.url.replace(/^\/api\/auth/, "") || "/",
 
-app.use('/api/auth', proxy(AUTH_SERVICE, {
-    // /auth/login -> /login on the auth service
-    proxyReqPathResolver: (req) => req.url.replace(/^\/api\/auth/, '') || '/',
+    proxyErrorHandler: (err, res) => {
+      console.error("auth proxy error:", err.code, err.message);
 
+      res.status(502).json({
+        message: "auth service unreachable",
+        error: err.code,
+      });
+    },
+  })
+);
 
-    proxyErrorHandler: (err, res, next) => {
-        console.error('Auth proxy error:', err.code, err.message);
-        res.status(502).json({ message: 'Auth service unreachable', error: err.code });
-    }
-}));
+app.use(
+  "/api/project",
+  protect,
+  proxyWithHeader(PROJECT_SERVICE, {
+    proxyReqPathResolver: (req) =>
+      req.url.replace(/^\/api\/project/, "") || "/",
 
+    proxyErrorHandler: (err, res) => {
+      console.error("project proxy error:", err.code, err.message);
 
+      res.status(502).json({
+        message: "project service unreachable",
+        error: err.code,
+      });
+    },
+  })
+);
 
-app.get('/health', (req, res) => {
-    res.status(200).json({ message: 'ya gateway is running' });
+app.get("/api/me", protect, getcurrentuser);
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    message: "gateway is running",
+  });
 });
 
 app.listen(port, () => {
-    console.log(`http://localhost:${port}`);
- 
+  console.log(`http://localhost:${port}`);
 });
+
