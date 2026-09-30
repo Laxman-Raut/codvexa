@@ -1,7 +1,7 @@
 import express from "express";
 import { create, deleteproject, getprojectById, getprojects, getstarredProjects, togglestarred } from "../controllers/project.controller.js";
 
-const router = express.router;
+const router = express.Router();
 
 router.post("/create",create);
 router.get("/get",getprojects);
