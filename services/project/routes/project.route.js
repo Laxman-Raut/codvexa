@@ -3,8 +3,8 @@ import { create, deleteproject, getprojectById, getprojects, getstarredProjects,
 
 const router = express.Router();
 
-router.post("/create",create);
-router.get("/get",getprojects);
+router.post("/",create);
+router.get("/",getprojects);
 router.get("/starred",getstarredProjects);
 router.get("/:id",getprojectById);
 router.patch("/:id",togglestarred);

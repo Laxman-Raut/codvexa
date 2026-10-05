@@ -30,7 +30,7 @@ await redis.set(
   `session-${sessionId}`,
   JSON.stringify({
     name: user.name,
-    _Id: user._id,
+    userId: user._id,
     email: user.email,
     avatar: user.avatar
   }),
@@ -44,7 +44,7 @@ res.cookie("sessionId", sessionId, {
   sameSite: "strict",
   maxAge: 7 * 24 * 60 * 60 * 1000
 });
-      return res.status(200).json({decoded})
+      return res.status(200).json(user)
 
     } catch (error){
         return res.status(500).json({

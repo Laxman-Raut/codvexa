@@ -1,20 +1,25 @@
-
 import express from "express";
 import { configDotenv } from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import proxy from "express-http-proxy";
-
 import { protect } from "./middleware/protect.js";
 import { getcurrentuser } from "./controllers/user.controller.js";
-import {proxyWithHeader}from "./utils/proxyWithHeader.js"
+import { proxyWithHeader } from "./utils/proxyWithHeader.js";
+
 configDotenv();
 
 const port = process.env.PORT || 8000;
 
 const AUTH_SERVICE = process.env.AUTH_SERVICE;
 const PROJECT_SERVICE = process.env.PROJECT_SERVICE;
+const FILE_SERVICE =process.env.FILE_SERVICE;
+
+if (!FILE_SERVICE) {
+  console.error("FILE_SERVICE is not set in .env");
+  process.exit(1);
+}
 
 if (!AUTH_SERVICE) {
   console.error("AUTH_SERVICE is not set in .env");
@@ -46,9 +51,7 @@ app.get("/", (req, res) => {
 app.use(
   "/api/auth",
   proxy(AUTH_SERVICE, {
-    proxyReqPathResolver: (req) =>
-      req.url.replace(/^\/api\/auth/, "") || "/",
-
+    proxyReqPathResolver: (req) => req.url || "/",
     proxyErrorHandler: (err, res) => {
       console.error("auth proxy error:", err.code, err.message);
 
@@ -60,18 +63,23 @@ app.use(
   })
 );
 
+
+
 app.use(
   "/api/project",
   protect,
-  proxyWithHeader(PROJECT_SERVICE, {
-    proxyReqPathResolver: (req) =>
-      req.url.replace(/^\/api\/project/, "") || "/",
+  proxyWithHeader(PROJECT_SERVICE)
+);
 
+app.use(
+  "/api/file",
+  proxy(FILE_SERVICE, {
+    proxyReqPathResolver: (req) => req.url || "/",
     proxyErrorHandler: (err, res) => {
-      console.error("project proxy error:", err.code, err.message);
+      console.error("file proxy error:", err.code, err.message);
 
       res.status(502).json({
-        message: "project service unreachable",
+        message: "file service unreachable",
         error: err.code,
       });
     },
@@ -89,4 +97,3 @@ app.get("/health", (req, res) => {
 app.listen(port, () => {
   console.log(`http://localhost:${port}`);
 });
-

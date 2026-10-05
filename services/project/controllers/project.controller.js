@@ -152,8 +152,12 @@ export const togglestarred = async (req, res) => {
         project.starred = !project.starred;
 
         await project.save();
-        await redis.set(key,JSON.stringify(projects))
-        await redis.del(key)
+
+        // Invalidate the cached project lists so they stay in sync
+        const key = `projects-${userId}`;
+        const starredKey = `starred-projects-${userId}`;
+        await redis.del(key);
+        await redis.del(starredKey);
 
         return res.status(200).json(project);
 
@@ -183,7 +187,10 @@ export const deleteproject= async (req, res) => {
             });
         }
 
-        await redis.del(key)
+        const key = `projects-${userId}`;
+        const starredKey = `starred-projects-${userId}`;
+        await redis.del(key);
+        await redis.del(starredKey);
 
         return res.status(200).json(project);
 
