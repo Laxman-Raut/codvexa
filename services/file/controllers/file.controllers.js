@@ -1,4 +1,6 @@
 import File from "../models/file.model.js";
+import { buildtree } from "../utils/buildtree.js";
+
 
 export const createrootFolder = async (req, res) => {
   try {
@@ -40,6 +42,8 @@ export const createrootFolder = async (req, res) => {
   }
 };
 
+
+
 export const createFolder = async (req, res) => {
   try {
     const { projectId, name,parentId } = req.body;
@@ -80,6 +84,8 @@ export const createFolder = async (req, res) => {
     });
   }
 };
+
+
 
 export const createFile = async (req, res) => {
   try {
@@ -181,6 +187,100 @@ export const updateFile = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: `update file error ${error.message}`
+    });
+  }
+};
+
+
+
+export const deleteFile = async (req, res) => {
+  try {
+    const userId = req.headers["x-user-id"];
+
+    const file = await File.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        owner: userId,
+        isdeleted: false
+      },
+      {
+        isdeleted: true
+      },
+      {
+        new: true
+      }
+    );
+
+    if (!file) {
+      return res.status(404).json({
+        message: "file not found"
+      });
+    }
+
+    return res.status(200).json(file);
+
+  } catch (error) {
+    return res.status(500).json({
+      message: `delete file error ${error.message}`
+    });
+  }
+};
+
+
+export const getFile = async (req, res) => {
+  try {
+    const userId = req.headers["x-user-id"];
+
+    const file = await File.findOne({
+      _id: req.params.id,
+      owner: userId,
+      isdeleted: false
+    });
+
+    if (!file) {
+      return res.status(404).json({
+        message: "file not found"
+      });
+    }
+
+    return res.status(200).json(file);
+
+  } catch (error) {
+    return res.status(500).json({
+      message: `get file error ${error.message}`
+    });
+  }
+};
+
+
+
+export const getTree = async (req, res) => {
+  try {
+    const userId = req.headers["x-user-id"];
+    const { projectId } = req.params;
+
+    const files = await File.find({
+      projectId,
+      owner: userId,
+      isdeleted: false
+    }).sort({
+      name: 1,
+      type: -1
+    });
+
+    const tree = buildtree(files);
+
+    if (!tree.length) {
+      return res.status(404).json({
+        message: "file not found"
+      });
+    }
+
+    return res.status(200).json(tree);
+
+  } catch (error) {
+    return res.status(500).json({
+      message: `get tree error ${error.message}`
     });
   }
 };
