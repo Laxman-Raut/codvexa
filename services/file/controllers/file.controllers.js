@@ -49,7 +49,7 @@ export const createFolder = async (req, res) => {
     const { projectId, name,parentId } = req.body;
     const userId = req.headers["x-user-id"];
 
-    if (!projectId || !name || parentId) {
+    if (!projectId || !name || !parentId) {
       return res.status(400).json({
         message: "projectId, parentId and name are  required"
       });
@@ -217,6 +217,25 @@ export const deleteFile = async (req, res) => {
       });
     }
 
+    if (file.type === "folder") {
+      const deleteDescendants = async (parentIds) => {
+        const children = await File.find({
+          parentId: { $in: parentIds },
+          owner: userId,
+          isdeleted: false
+        });
+        if (children.length > 0) {
+          const childIds = children.map((c) => c._id);
+          await File.updateMany(
+            { _id: { $in: childIds } },
+            { isdeleted: true }
+          );
+          await deleteDescendants(childIds);
+        }
+      };
+      await deleteDescendants([file._id]);
+    }
+
     return res.status(200).json(file);
 
   } catch (error) {
@@ -263,20 +282,16 @@ export const getTree = async (req, res) => {
       projectId,
       owner: userId,
       isdeleted: false
-    }).sort({
-      name: 1,
-      type: -1
-    });
+    })
+      .sort({
+        name: 1,
+        type: -1
+      })
+      .lean();
 
     const tree = buildtree(files);
 
-    if (!tree.length) {
-      return res.status(404).json({
-        message: "file not found"
-      });
-    }
-
-    return res.status(200).json(tree);
+    return res.status(200).json(tree || []);
 
   } catch (error) {
     return res.status(500).json({

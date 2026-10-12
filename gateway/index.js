@@ -73,17 +73,8 @@ app.use(
 
 app.use(
   "/api/file",
-  proxy(FILE_SERVICE, {
-    proxyReqPathResolver: (req) => req.url || "/",
-    proxyErrorHandler: (err, res) => {
-      console.error("file proxy error:", err.code, err.message);
-
-      res.status(502).json({
-        message: "file service unreachable",
-        error: err.code,
-      });
-    },
-  })
+  protect,
+  proxyWithHeader(FILE_SERVICE)
 );
 
 app.get("/api/me", protect, getcurrentuser);
