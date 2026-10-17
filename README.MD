@@ -460,10 +460,16 @@ PATCH  /api/project/:id                                      → Project (starre
 DELETE /api/project/:id                                      → Project (deleted)
 ```
 
-### File Routes (`/api/file`) — 🚧 In Development
+### File Routes (`/api/file`) — 🔒 Protected
 
 ```
-POST   /api/file/root        Body: { projectId, projectName }  → File (root folder)
+POST   /api/file/create-root-folder  Body: { projectId, projectName }   → File (root folder)
+POST   /api/file/create-folder       Body: { projectId, name, parentId } → File (folder)
+POST   /api/file/create-file         Body: { projectId, name, parentId } → File (file)
+PATCH  /api/file/:id                 Body: { name?, content? }           → File (updated)
+DELETE /api/file/:id                                                     → File (deleted + recursive children)
+GET    /api/file/tree/:projectId                                         → File[] (hierarchical tree)
+GET    /api/file/:id                                                     → File (single file details)
 ```
 
 ---
