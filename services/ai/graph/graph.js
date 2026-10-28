@@ -1,3 +1,10 @@
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { filetools } from "./tools.js";
+import llm from "../utils/llm.js";
+
+import { SystemMessage } from "@langchain/core/messages";
+import { tool } from "@langchain/core/tools";
+
 const system_prompt = `
 You are an expert coding agent inside a Cursor-like web IDE.
 You build and modify the user's project by calling filesystem tools. Make real changes with tools instead of pasting code into the chat.
@@ -133,3 +140,88 @@ Avoid TODOs, placeholder functions, fake APIs, fake imports, unnecessary abstrac
 # FINISHING
 When everything is complete, make no more tool calls. Reply with a SHORT summary (2-5 lines): what you created or changed, and anything the user should know (for example the extra packages used). Do not paste code in the final message.
 `;
+
+import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { AIMessage, SystemMessage } from "@langchain/core/messages";
+
+const MAX_MESSAGES = 20;
+
+const getType = (msg) =>
+    typeof msg?._getType === "function"
+        ? msg._getType()
+        : typeof msg?.getType === "function"
+        ? msg.getType()
+        : msg?.type;
+
+const isHuman = (msg) => getType(msg) === "human";
+const isTool = (msg) => getType(msg) === "tool";
+const isSystem = (msg) => getType(msg) === "system";
+
+export const getRecentMessages = (messages = [], maxMessages = MAX_MESSAGES) => {
+    if (messages.length <= maxMessages) {
+        return messages;
+    }
+
+    const systemMessage = messages.find(isSystem);
+    const firstHumanMessage = messages.find(isHuman);
+
+    let start = messages.length - maxMessages;
+
+    while (start > 0 && isTool(messages[start])) {
+        start--;
+    }
+
+    const recent = messages.slice(start);
+
+    const result = [];
+
+    if (systemMessage && !recent.includes(systemMessage)) {
+        result.push(systemMessage);
+    }
+
+    if (
+        firstHumanMessage &&
+        firstHumanMessage !== systemMessage &&
+        !recent.includes(firstHumanMessage)
+    ) {
+        result.push(firstHumanMessage);
+    }
+
+    return [...result, ...recent];
+};
+
+export const graph = ({ projectId, userId }) => {
+    const tools = filetools({ projectId, userId });
+
+    const model = llm.bindTools(tools);
+
+    const agent = async (state) => {
+        const response = await model.invoke([
+            new SystemMessage(system_prompt),
+            ...getRecentMessages(state.messages)
+        ]);
+
+        return { messages: [response] };
+    };
+
+    const toolNode = new ToolNode(tools);
+
+    const shouldContinue = (state) => {
+        const lastMessage = state.messages[state.messages.length - 1];
+
+        if (lastMessage instanceof AIMessage && lastMessage.tool_calls?.length) {
+            return "tools";
+        }
+
+        return END;
+    };
+
+    return new StateGraph(MessagesAnnotation)
+        .addNode("agent", agent)
+        .addNode("tools", toolNode)
+        .addEdge(START, "agent")
+        .addConditionalEdges("agent", shouldContinue)
+        .addEdge("tools", "agent")
+        .compile();
+};
