@@ -5,6 +5,7 @@ import z from "zod/v3";
 const MAX_CONTENT_CHARS = 50000;
 
 const compactTree = (items = []) => {
+    if (!Array.isArray(items)) return [];
     return items.map((item) => ({
         _id: item._id,
         parentId: item.parentId,
@@ -23,7 +24,7 @@ export const filetools = ({ projectId, userId }) => {
 
             try {
                 const result = await getTree(userId, projectId);
-                const tree = compactTree(result);
+                const tree = compactTree(Array.isArray(result) ? result : []);
 
                 return JSON.stringify({
                     success: true,
@@ -32,7 +33,7 @@ export const filetools = ({ projectId, userId }) => {
             } catch (err) {
                 return JSON.stringify({
                     success: false,
-                    error: err.message || "Failed to fetch project tree."
+                    error: err.response?.data?.message || err.message || "Failed to fetch project tree."
                 });
             }
         },
@@ -102,7 +103,7 @@ The tree contains: _id, parentId, name, type, language, extension, children.`,
             } catch (err) {
                 return JSON.stringify({
                     success: false,
-                    error: err.message || "Failed to fetch file."
+                    error: err.response?.data?.message || err.message || "Failed to fetch file."
                 });
             }
         },
@@ -122,41 +123,40 @@ STRICT RULES:
         }
     );
 
+    const createFolderTool = tool(
+        async ({ name, parentId }) => {
+            console.log("AI TOOL - createFolder");
 
-const createFolderTool = tool(
-    async ({ name, parentId }) => {
-        console.log("AI TOOL - createFolder");
+            try {
+                const folder = await createFolder(userId, projectId, name, parentId || null);
 
-        try {
-            const folder = await createFolder(userId, projectId, name, parentId || null);
+                if (!folder) {
+                    return JSON.stringify({
+                        success: false,
+                        error: "Folder could not be created."
+                    });
+                }
 
-            if (!folder) {
+                return JSON.stringify({
+                    success: true,
+                    operation: "folder_created",
+                    folder: {
+                        _id: folder._id,
+                        name: folder.name,
+                        type: folder.type,
+                        parentId: folder.parentId
+                    }
+                });
+            } catch (err) {
                 return JSON.stringify({
                     success: false,
-                    error: "Folder could not be created."
+                    error: err.response?.data?.message || err.message || "Failed to create folder."
                 });
             }
-
-            return JSON.stringify({
-                success: true,
-                operation: "folder_created",
-                folder: {
-                    _id: folder._id,
-                    name: folder.name,
-                    type: folder.type,
-                    parentId: folder.parentId
-                }
-            });
-        } catch (err) {
-            return JSON.stringify({
-                success: false,
-                error: err.message || "Failed to create folder."
-            });
-        }
-    },
-    {
-        name: "create_folder",
-        description: `Create a new folder in the project.
+        },
+        {
+            name: "create_folder",
+            description: `Create a new folder in the project.
 RULES:
 1. Create parent folders first, then their children.
 2. Use the exact parentId from get_tree (or from a previous create_folder result).
@@ -165,60 +165,59 @@ RULES:
 5. A folder directly inside another folder must use that folder's _id as parentId.
 6. After creation, continue with the remaining work.
 7. Do not call get_tree again just to verify the folder; the result of this tool is enough.`,
-        schema: z.object({
-            name: z.string().describe("Name of the folder to create"),
-            parentId: z
-                .string()
-                .nullable()
-                .optional()
-                .describe("The _id of the parent folder, or null/omitted for the project root")
-        })
-    }
-);
+            schema: z.object({
+                name: z.string().describe("Name of the folder to create"),
+                parentId: z
+                    .string()
+                    .nullable()
+                    .optional()
+                    .describe("The _id of the parent folder, or null/omitted for the project root")
+            })
+        }
+    );
 
+    const createFileTool = tool(
+        async ({ name, parentId, content, language }) => {
+            console.log("AI TOOL - createFile");
 
-const createFileTool = tool(
-    async ({ name, parentId, content, language }) => {
-        console.log("AI TOOL - createFile");
+            try {
+                const file = await createFile(
+                    userId,
+                    projectId,
+                    name,
+                    parentId || null,
+                    content ?? "",
+                    language || "plaintext"
+                );
 
-        try {
-            const file = await createFile(
-                userId,
-                projectId,
-                name,
-                parentId || null,
-                content ?? "",
-                language || "plaintext"
-            );
+                if (!file) {
+                    return JSON.stringify({
+                        success: false,
+                        error: "File could not be created."
+                    });
+                }
 
-            if (!file) {
+                return JSON.stringify({
+                    success: true,
+                    operation: "file_created",
+                    file: {
+                        _id: file._id,
+                        name: file.name,
+                        type: file.type,
+                        language: file.language,
+                        parentId: file.parentId
+                    }
+                });
+            } catch (err) {
                 return JSON.stringify({
                     success: false,
-                    error: "File could not be created."
+                    error: err.response?.data?.message || err.message || "Failed to create file."
                 });
             }
-
-            return JSON.stringify({
-                success: true,
-                operation: "file_created",
-                file: {
-                    _id: file._id,
-                    name: file.name,
-                    type: file.type,
-                    language: file.language,
-                    parentId: file.parentId
-                }
-            });
-        } catch (err) {
-            return JSON.stringify({
-                success: false,
-                error: err.message || "Failed to create file."
-            });
-        }
-    },
-    {
-        name: "create_file",
-        description: `Create a NEW FILE in the project.
+        },
+        {
+            name: "create_file",
+            description: `Create a NEW FILE in the project.
 RULES:
 1. Use get_tree first when the project structure is unknown.
 2. Use the exact folder _id as parentId (from get_tree or a previous create_folder result).
@@ -229,68 +228,68 @@ RULES:
 7. Never use terminal commands to create files.
 8. Do not call get_file immediately after creating a file.
 9. Continue creating all required files. Do not stop after creating only one file.`,
-        schema: z.object({
-            name: z.string().describe("Name of the file, including extension (e.g. App.jsx)"),
-            language: z
-                .string()
-                .optional()
-                .describe("Language of the file, e.g. javascript, python, html. Defaults to plaintext"),
-            content: z.string().describe("The complete content of the file"),
-            parentId: z
-                .string()
-                .nullable()
-                .optional()
-                .describe("The _id of the parent folder, or null/omitted for the project root")
-        })
-    }
-);
-
-const updateFileTool = tool(
-    async ({ fileId, content, name }) => {
-        console.log("AI TOOL - updateFile");
-
-        try {
-            const file = await updateFile(userId, projectId, fileId, {
-                content,
-                ...(name ? { name } : {})
-            });
-
-            if (!file) {
-                return JSON.stringify({
-                    success: false,
-                    error: "File not found or could not be updated."
-                });
-            }
-
-            if (file.type !== "file") {
-                return JSON.stringify({
-                    success: false,
-                    error: "The provided ID belongs to a folder, not a file.",
-                    instruction: "Do not call update_file for a folder."
-                });
-            }
-
-            return JSON.stringify({
-                success: true,
-                operation: "file_updated",
-                file: {
-                    _id: file._id,
-                    name: file.name,
-                    type: file.type,
-                    language: file.language,
-                    parentId: file.parentId
-                }
-            });
-        } catch (err) {
-            return JSON.stringify({
-                success: false,
-                error: err.message || "Failed to update file."
-            });
+            schema: z.object({
+                name: z.string().describe("Name of the file, including extension (e.g. App.jsx)"),
+                language: z
+                    .string()
+                    .optional()
+                    .describe("Language of the file, e.g. javascript, python, html. Defaults to plaintext"),
+                content: z.string().describe("The complete content of the file"),
+                parentId: z
+                    .string()
+                    .nullable()
+                    .optional()
+                    .describe("The _id of the parent folder, or null/omitted for the project root")
+            })
         }
-    },
-    {
-        name: "update_file",
-        description: `Update an EXISTING FILE.
+    );
+
+    const updateFileTool = tool(
+        async ({ fileId, content, name }) => {
+            console.log("AI TOOL - updateFile");
+
+            try {
+                const file = await updateFile(userId, projectId, fileId, {
+                    content,
+                    ...(name ? { name } : {})
+                });
+
+                if (!file) {
+                    return JSON.stringify({
+                        success: false,
+                        error: "File not found or could not be updated."
+                    });
+                }
+
+                if (file.type !== "file") {
+                    return JSON.stringify({
+                        success: false,
+                        error: "The provided ID belongs to a folder, not a file.",
+                        instruction: "Do not call update_file for a folder."
+                    });
+                }
+
+                return JSON.stringify({
+                    success: true,
+                    operation: "file_updated",
+                    file: {
+                        _id: file._id,
+                        name: file.name,
+                        type: file.type,
+                        language: file.language,
+                        parentId: file.parentId
+                    }
+                });
+            } catch (err) {
+                return JSON.stringify({
+                    success: false,
+                    error: err.response?.data?.message || err.message || "Failed to update file."
+                });
+            }
+        },
+        {
+            name: "update_file",
+            description: `Update an EXISTING FILE.
 RULES:
 1. Call get_file before updating.
 2. fileId must be an actual file ID from get_tree.
@@ -300,49 +299,49 @@ RULES:
 6. Do not update files that do not exist.
 7. After a successful update, continue with the remaining work.
 8. Do not call get_file again unless another modification is needed.`,
-        schema: z.object({
-            fileId: z.string().describe("The _id of the file (not a folder) from get_tree"),
-            content: z.string().describe("The complete updated content of the file"),
-            name: z
-                .string()
-                .optional()
-                .describe("New file name including extension. Omit to keep the current name")
-        })
-    }
-);
+            schema: z.object({
+                fileId: z.string().describe("The _id of the file (not a folder) from get_tree"),
+                content: z.string().describe("The complete updated content of the file"),
+                name: z
+                    .string()
+                    .optional()
+                    .describe("New file name including extension. Omit to keep the current name")
+            })
+        }
+    );
 
-const deleteFileTool = tool(
-    async ({ fileId }) => {
-        console.log("AI TOOL - deleteFile");
+    const deleteFileTool = tool(
+        async ({ fileId }) => {
+            console.log("AI TOOL - deleteFile");
 
-        try {
-            const file = await deleteFile(userId, projectId, fileId);
+            try {
+                const file = await deleteFile(userId, projectId, fileId);
 
-            if (!file) {
+                if (!file) {
+                    return JSON.stringify({
+                        success: false,
+                        error: "File not found or could not be deleted."
+                    });
+                }
+
+                return JSON.stringify({
+                    success: true,
+                    operation: "file_deleted",
+                    file: {
+                        _id: file._id,
+                        name: file.name
+                    }
+                });
+            } catch (err) {
                 return JSON.stringify({
                     success: false,
-                    error: "File not found or could not be deleted."
+                    error: err.response?.data?.message || err.message || "Failed to delete file."
                 });
             }
-
-            return JSON.stringify({
-                success: true,
-                operation: "file_deleted",
-                file: {
-                    _id: file._id,
-                    name: file.name
-                }
-            });
-        } catch (err) {
-            return JSON.stringify({
-                success: false,
-                error: err.message || "Failed to delete file."
-            });
-        }
-    },
-    {
-        name: "delete_file",
-        description: `Permanently delete an EXISTING FILE.
+        },
+        {
+            name: "delete_file",
+            description: `Permanently delete an EXISTING FILE.
 RULES:
 1. fileId must be an actual file ID from get_tree.
 2. NEVER pass a folder ID. This tool cannot delete folders.
@@ -351,19 +350,18 @@ RULES:
 5. Deletion cannot be undone.
 6. After a successful delete, continue with the remaining work.
 7. Do not call get_tree again just to verify the deletion.`,
-        schema: z.object({
-            fileId: z.string().describe("The _id of the file (not a folder) from get_tree")
-        })
-    }
-);
+            schema: z.object({
+                fileId: z.string().describe("The _id of the file (not a folder) from get_tree")
+            })
+        }
+    );
 
-return[
-    getTreeTool,
-    getFileTool,
-    createFileTool,
-    createFolderTool,
-    updateFileTool,
-    deleteFileTool
-]
-  
+    return [
+        getTreeTool,
+        getFileTool,
+        createFileTool,
+        createFolderTool,
+        updateFileTool,
+        deleteFileTool
+    ];
 };

@@ -67,9 +67,9 @@ export const chat = async (req, res) => {
       });
     }
 
-    if (!projectId) {
+    if (!projectId || typeof projectId !== "string" || !projectId.trim() || projectId === "true") {
       return res.status(400).json({
-        message: "project id is not found",
+        message: "Valid project id is required",
       });
     }
 
@@ -97,7 +97,7 @@ export const chat = async (req, res) => {
       message: "AI started",
     });
 
-    const graphData = graph({ projectId, userId });
+    const graphData = graph({ projectId: projectId.trim(), userId });
     const messages = buildHistory(history);
     messages.push(new HumanMessage(message.trim()));
 

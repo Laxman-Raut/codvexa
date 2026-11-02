@@ -1,9 +1,8 @@
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { filetools } from "./tools.js";
 import llm from "../utils/llm.js";
-
-import { SystemMessage } from "@langchain/core/messages";
-import { tool } from "@langchain/core/tools";
+import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
 
 const system_prompt = `
 You are an expert coding agent inside a Cursor-like web IDE.
@@ -141,10 +140,6 @@ Avoid TODOs, placeholder functions, fake APIs, fake imports, unnecessary abstrac
 When everything is complete, make no more tool calls. Reply with a SHORT summary (2-5 lines): what you created or changed, and anything the user should know (for example the extra packages used). Do not paste code in the final message.
 `;
 
-import { StateGraph, MessagesAnnotation, START, END } from "@langchain/langgraph";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { AIMessage, SystemMessage } from "@langchain/core/messages";
-
 const MAX_MESSAGES = 20;
 
 const getType = (msg) =>
@@ -210,7 +205,7 @@ export const graph = ({ projectId, userId }) => {
     const shouldContinue = (state) => {
         const lastMessage = state.messages[state.messages.length - 1];
 
-        if (lastMessage instanceof AIMessage && lastMessage.tool_calls?.length) {
+        if (lastMessage?.tool_calls && lastMessage.tool_calls.length > 0) {
             return "tools";
         }
 
