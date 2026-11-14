@@ -18,10 +18,10 @@ app.use(express.json());
 app.get("/", (req, res) => {
     res.json({ message: "file service is up" });
 });
-app.use("/",router)
 app.get("/health", (req, res) => {
     res.status(200).json({ message: "file service is running" });
 });
+app.use("/",router)
 
 app.listen(port, () => {
     connectDb();

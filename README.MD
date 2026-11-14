@@ -15,7 +15,7 @@
    - [3. Project Service](#3-project-service)
    - [4. File Service](#4-file-service)
    - [5. AI Service](#5-ai-service)
-   - [6. Terminal Service (WIP)](#6-terminal-service-wip)
+   - [6. Terminal Service](#6-terminal-service)
 5. [Shared Layer](#shared-layer)
 6. [Data Models](#data-models)
 7. [Authentication & Session Flow](#authentication--session-flow)
@@ -379,11 +379,22 @@ When calling `POST /api/ai/chat`, the client receives a continuous stream of eve
 
 ---
 
-### 6. Terminal Service (WIP)
+### 6. Terminal Service
 
 **Directory:** [`services/Terminal/`](./services/Terminal/)
 
-An upcoming service planned for executing terminal commands, package management (`npm install`), and running user application processes within isolated Docker containers or sandboxed virtual machines.
+The terminal service provides Socket.IO PTY sessions and syncs project files with the file service. It validates the browser session through the gateway before opening a shell, and watches the workspace for file changes.
+
+Configure the service with:
+
+```ini
+PORT=8005
+FILE_SERVICE_URI=http://localhost:8003
+GATEWAY_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:5173
+```
+
+The browser connects directly to the Socket.IO service, so set `VITE_TERMINAL_URL` in the frontend to a URL reachable from the browser (for local development, `http://localhost:8005`). The service currently runs the shell as its operating system user; it does not isolate commands in Docker or a VM and should only be used in a trusted development environment.
 
 ---
 
@@ -552,6 +563,7 @@ AUTH_SERVICE=http://localhost:8001
 PROJECT_SERVICE=http://localhost:8002
 FILE_SERVICE=http://localhost:8003
 AI_SERVICE=http://localhost:8004
+TERMINAL_SERVICE=http://localhost:8005
 REDIS_URL=redis://localhost:6379
 ```
 

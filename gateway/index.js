@@ -14,8 +14,9 @@ const port = process.env.PORT || 8000;
 
 const AUTH_SERVICE = process.env.AUTH_SERVICE;
 const PROJECT_SERVICE = process.env.PROJECT_SERVICE;
-const FILE_SERVICE =process.env.FILE_SERVICE;
+const FILE_SERVICE = process.env.FILE_SERVICE;
 const AI_SERVICE = process.env.AI_SERVICE;
+const TERMINAL_SERVICE = process.env.TERMINAL_SERVICE;
 
 if (!FILE_SERVICE) {
   console.error("FILE_SERVICE is not set in .env");
@@ -34,6 +35,11 @@ if (!PROJECT_SERVICE) {
 
 if (!AI_SERVICE) {
   console.error("AI_SERVICE is not set in .env");
+  process.exit(1);
+}
+
+if (!TERMINAL_SERVICE) {
+  console.error("TERMINAL_SERVICE is not set in .env");
   process.exit(1);
 }
 
@@ -69,8 +75,6 @@ app.use(
   })
 );
 
-
-
 app.use(
   "/api/project",
   protect,
@@ -87,6 +91,12 @@ app.use(
   "/api/file",
   protect,
   proxyWithHeader(FILE_SERVICE)
+);
+
+app.use(
+  "/api/terminal",
+  protect,
+  proxyWithHeader(TERMINAL_SERVICE)
 );
 
 app.get("/api/me", protect, getcurrentuser);
